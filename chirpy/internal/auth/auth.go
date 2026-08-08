@@ -71,6 +71,19 @@ func GetBearerToken(headers http.Header) (string, error) {
 	return parts[1], nil
 }
 
+func GetAPIKey(headers http.Header) (string, error) {
+	parts := strings.Fields(headers.Get("Authorization"))
+	if len(parts) != 2 || parts[0] != "ApiKey" {
+		return "", fmt.Errorf("invalid authorization header")
+	}
+
+	if parts[1] == "" {
+		return "", fmt.Errorf("no api key provided")
+	}
+
+	return parts[1], nil
+}
+
 func GetUserIdFromBearerTokenHeader(h http.Header, jwtSecret string) (uuid.UUID, error) {
 	bearerToken, err := GetBearerToken(h)
 	if err != nil {

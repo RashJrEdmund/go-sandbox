@@ -71,11 +71,46 @@ func (q *Queries) GetChirpByID(ctx context.Context, id uuid.UUID) (Chirp, error)
 
 const listAllChirps = `-- name: ListAllChirps :many
 SELECT id, created_at, updated_at, body, user_id FROM chirps
-ORDER BY created_at DESC
+ORDER BY created_at ASC
 `
 
 func (q *Queries) ListAllChirps(ctx context.Context) ([]Chirp, error) {
 	rows, err := q.db.QueryContext(ctx, listAllChirps)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Chirp
+	for rows.Next() {
+		var i Chirp
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Body,
+			&i.UserID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listChirpsByAuthorID = `-- name: ListChirpsByAuthorID :many
+SELECT id, created_at, updated_at, body, user_id FROM chirps
+WHERE user_id = $1
+ORDER BY created_at ASC
+`
+
+func (q *Queries) ListChirpsByAuthorID(ctx context.Context, userID uuid.UUID) ([]Chirp, error) {
+	rows, err := q.db.QueryContext(ctx, listChirpsByAuthorID, userID)
 	if err != nil {
 		return nil, err
 	}

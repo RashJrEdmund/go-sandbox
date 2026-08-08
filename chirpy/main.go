@@ -12,6 +12,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"sort"
 	"sync/atomic"
 	"time"
 
@@ -33,6 +34,7 @@ type apiConfig struct {
 	dbQueries      *database.Queries
 	platform       string
 	jwtSecret      string
+	polkaKey       string
 }
 
 func (apiCfg *apiConfig) middlewareMetricsInc(next http.Handler) http.Handler {
@@ -329,10 +331,35 @@ func (apiCfg *apiConfig) createChirpHandler(w http.ResponseWriter, r *http.Reque
 }
 
 func (apiCfg *apiConfig) getChirpsHandler(w http.ResponseWriter, r *http.Request) {
-	chirps, err := apiCfg.dbQueries.ListAllChirps(r.Context())
+	var chirps []database.Chirp
+	var err error
+
+	authorID := r.URL.Query().Get("author_id")
+	if authorID != "" {
+		authorUUID, parseErr := uuid.Parse(authorID)
+		if parseErr != nil {
+			utils.RespondWithError(w, http.StatusBadRequest, "Something went wrong. Invalid author_id.")
+			return
+		}
+		chirps, err = apiCfg.dbQueries.ListChirpsByAuthorID(r.Context(), authorUUID)
+	} else {
+		chirps, err = apiCfg.dbQueries.ListAllChirps(r.Context())
+	}
+
 	if err != nil {
 		utils.RespondWithError(w, http.StatusInternalServerError, "Something went wrong. Failed to get chirps.")
 		return
+	}
+
+	sortOrder := r.URL.Query().Get("sort")
+	if sortOrder == "desc" {
+		sort.Slice(chirps, func(i, j int) bool {
+			return chirps[i].CreatedAt.After(chirps[j].CreatedAt)
+		})
+	} else {
+		sort.Slice(chirps, func(i, j int) bool {
+			return chirps[i].CreatedAt.Before(chirps[j].CreatedAt)
+		})
 	}
 
 	chirpResp := []utils.CreateChirpResponse{}
@@ -411,6 +438,12 @@ func (apiCfg *apiConfig) deleteChirpByIDHandler(w http.ResponseWriter, r *http.R
 }
 
 func (apiCfg *apiConfig) polkaWebhookHandler(w http.ResponseWriter, r *http.Request) {
+	apiKey, err := auth.GetAPIKey(r.Header)
+	if err != nil || apiKey != apiCfg.polkaKey {
+		utils.RespondWithError(w, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+
 	var reqData utils.PolkaWebhookRequest
 
 	decoder := json.NewDecoder(r.Body)
@@ -461,6 +494,7 @@ func main() {
 	DB, err := sql.Open("postgres", dbURL)
 	PLATFORM := os.Getenv("PLATFORM")
 	JWT_SECRET := os.Getenv("JWT_SECRET")
+	POLKA_KEY := os.Getenv("POLKA_KEY")
 
 	if err != nil {
 		log.Fatal(err)
@@ -484,6 +518,7 @@ func main() {
 		dbQueries:      database.New(DB),
 		platform:       PLATFORM,
 		jwtSecret:      JWT_SECRET,
+		polkaKey:       POLKA_KEY,
 	}
 
 	/*
