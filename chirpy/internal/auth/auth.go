@@ -59,13 +59,30 @@ func ValidateJWT(tokenString, tokenSecret string) (uuid.UUID, error) {
 
 // Reading the Authorization header: Bearer TOKEN_STRING
 func GetBearerToken(headers http.Header) (string, error) {
-	authHeader := strings.Fields(headers.Get("Authorization"))[1]
-
-	if authHeader == "" {
-		return "", fmt.Errorf("no authorization header")
+	parts := strings.Fields(headers.Get("Authorization"))
+	if len(parts) != 2 || parts[0] != "Bearer" {
+		return "", fmt.Errorf("invalid authorization header")
 	}
 
-	return authHeader, nil
+	if parts[1] == "" {
+		return "", fmt.Errorf("no token provided")
+	}
+
+	return parts[1], nil
+}
+
+func GetUserIdFromBearerTokenHeader(h http.Header, jwtSecret string) (uuid.UUID, error) {
+	bearerToken, err := GetBearerToken(h)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("invalid token")
+	}
+
+	userIDFromToken, err := ValidateJWT(bearerToken, jwtSecret)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("invalid token")
+	}
+
+	return userIDFromToken, nil
 }
 
 // REFRESH TOKEN

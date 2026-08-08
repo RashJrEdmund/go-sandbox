@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"sync/atomic"
+	"time"
 
 	"github.com/RashJrEdmund/go-sandbox/chirpy/internal/auth"
 	"github.com/RashJrEdmund/go-sandbox/chirpy/internal/database"
@@ -105,13 +106,73 @@ func (apiCfg *apiConfig) createUserHandler(w http.ResponseWriter, r *http.Reques
 	}
 
 	userResp := utils.UserResponse{
-		ID:        newUser.ID.String(),
-		Email:     newUser.Email,
-		CreatedAt: newUser.CreatedAt,
-		UpdatedAt: newUser.UpdatedAt,
+		ID:          newUser.ID.String(),
+		Email:       newUser.Email,
+		CreatedAt:   newUser.CreatedAt,
+		UpdatedAt:   newUser.UpdatedAt,
+		IsChirpyRed: newUser.IsChirpyRed,
 	}
 
 	utils.RespondWithJSON(w, http.StatusCreated, userResp)
+}
+
+func (apiCfg *apiConfig) updateUserHandler(w http.ResponseWriter, r *http.Request) {
+	var reqData utils.UpdateUserRequest
+
+	refreshToken, err := auth.GetBearerToken(r.Header)
+	if err != nil {
+		utils.RespondWithError(w, http.StatusUnauthorized, "Invalid token.")
+		return
+	}
+
+	userIDFromToken, err := auth.ValidateJWT(refreshToken, apiCfg.jwtSecret)
+	if err != nil {
+		utils.RespondWithError(w, http.StatusUnauthorized, "Invalid token.")
+		return
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&reqData); err != nil {
+		utils.RespondWithError(w, http.StatusBadRequest, "Something went wrong. Invalid JSON.")
+		return
+	}
+
+	user, err := apiCfg.dbQueries.GetUserByID(r.Context(), userIDFromToken)
+	if err != nil {
+		utils.RespondWithError(w, http.StatusUnauthorized, "Invalid token.")
+		return
+	}
+
+	// Creating new hash
+
+	hashedPassword, err := auth.HashPassword(reqData.Password)
+	if err != nil {
+		utils.RespondWithError(w, http.StatusInternalServerError, "Something went wrong. Failed to hash password.")
+		return
+	}
+
+	err = apiCfg.dbQueries.UpdateUser(r.Context(), database.UpdateUserParams{
+		ID:             user.ID,
+		Email:          reqData.Email,
+		HashedPassword: hashedPassword,
+	})
+
+	if err != nil {
+		utils.RespondWithError(w, http.StatusInternalServerError, "Something went wrong. Failed to update user.")
+		return
+	}
+
+	updatedAt := time.Now().UTC()
+
+	userResp := utils.UserResponse{
+		ID:          user.ID.String(),
+		Email:       reqData.Email,
+		CreatedAt:   user.CreatedAt,
+		UpdatedAt:   updatedAt,
+		IsChirpyRed: user.IsChirpyRed,
+	}
+
+	utils.RespondWithJSON(w, http.StatusOK, userResp)
 }
 
 func (apiCfg *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
@@ -156,10 +217,11 @@ func (apiCfg *apiConfig) loginHandler(w http.ResponseWriter, r *http.Request) {
 		Token:        token,
 		RefreshToken: refreshToken.Token,
 		UserResponse: utils.UserResponse{
-			ID:        user.ID.String(),
-			Email:     user.Email,
-			CreatedAt: user.CreatedAt,
-			UpdatedAt: user.UpdatedAt,
+			ID:          user.ID.String(),
+			Email:       user.Email,
+			CreatedAt:   user.CreatedAt,
+			UpdatedAt:   user.UpdatedAt,
+			IsChirpyRed: user.IsChirpyRed,
 		},
 	}
 
@@ -231,13 +293,7 @@ func (apiCfg *apiConfig) createChirpHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	bearerToken, err := auth.GetBearerToken(r.Header)
-	if err != nil {
-		utils.RespondWithError(w, http.StatusUnauthorized, "Invalid token.")
-		return
-	}
-
-	userIDFromToken, err := auth.ValidateJWT(bearerToken, apiCfg.jwtSecret)
+	userIDFromToken, err := auth.GetUserIdFromBearerTokenHeader(r.Header, apiCfg.jwtSecret)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusUnauthorized, "Invalid token.")
 		return
@@ -302,21 +358,91 @@ func (apiCfg *apiConfig) getChirpByIDHandler(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	newChirp, err := apiCfg.dbQueries.GetChirpByID(r.Context(), chirpIdUUID)
+	chirp, err := apiCfg.dbQueries.GetChirpByID(r.Context(), chirpIdUUID)
 	if err != nil {
 		utils.RespondWithError(w, http.StatusNotFound, "Failed to get chirp.")
 		return
 	}
 
 	chirpResp := utils.CreateChirpResponse{
-		ID:        newChirp.ID.String(),
-		Body:      newChirp.Body,
-		UserId:    newChirp.UserID.String(),
-		CreatedAt: newChirp.CreatedAt,
-		UpdatedAt: newChirp.UpdatedAt,
+		ID:        chirp.ID.String(),
+		Body:      chirp.Body,
+		UserId:    chirp.UserID.String(),
+		CreatedAt: chirp.CreatedAt,
+		UpdatedAt: chirp.UpdatedAt,
 	}
 
 	utils.RespondWithJSON(w, http.StatusOK, chirpResp)
+}
+
+func (apiCfg *apiConfig) deleteChirpByIDHandler(w http.ResponseWriter, r *http.Request) {
+	chirpId := r.PathValue("chirpId") // see: https://pkg.go.dev/net/http#Request.PathValue
+
+	userIDFromToken, err := auth.GetUserIdFromBearerTokenHeader(r.Header, apiCfg.jwtSecret)
+	if err != nil {
+		utils.RespondWithError(w, http.StatusUnauthorized, "Invalid token.")
+		return
+	}
+
+	chirpIdUUID, err := uuid.Parse(chirpId)
+	if err != nil {
+		utils.RespondWithError(w, http.StatusBadRequest, "Something went wrong. Invalid chirp_id.")
+		return
+	}
+
+	chirp, err := apiCfg.dbQueries.GetChirpByID(r.Context(), chirpIdUUID)
+	if err != nil {
+		utils.RespondWithError(w, http.StatusNotFound, "Failed to get chirp.")
+		return
+	}
+
+	if chirp.UserID != userIDFromToken {
+		utils.RespondWithError(w, http.StatusForbidden, "You are not authorized to delete this chirp.")
+		return
+	}
+
+	err = apiCfg.dbQueries.DeleteChirpById(r.Context(), chirpIdUUID)
+	if err != nil {
+		utils.RespondWithError(w, http.StatusInternalServerError, "Something went wrong. Failed to delete chirp.")
+		return
+	}
+
+	utils.RespondWithJSON(w, http.StatusNoContent, nil)
+}
+
+func (apiCfg *apiConfig) polkaWebhookHandler(w http.ResponseWriter, r *http.Request) {
+	var reqData utils.PolkaWebhookRequest
+
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&reqData); err != nil {
+		utils.RespondWithError(w, http.StatusBadRequest, "Something went wrong. Invalid JSON.")
+		return
+	}
+
+	if reqData.Event != "user.upgraded" {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	userID, err := uuid.Parse(reqData.Data.UserID)
+	if err != nil {
+		utils.RespondWithError(w, http.StatusBadRequest, "Something went wrong. Invalid user_id.")
+		return
+	}
+
+	_, err = apiCfg.dbQueries.GetUserByID(r.Context(), userID)
+	if err != nil {
+		utils.RespondWithError(w, http.StatusNotFound, "User not found.")
+		return
+	}
+
+	err = apiCfg.dbQueries.UpgradeToChirpyRed(r.Context(), userID)
+	if err != nil {
+		utils.RespondWithError(w, http.StatusInternalServerError, "Something went wrong. Failed to upgrade user.")
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // NON-API_CONFIG METHOD ROUTE HANDLERS
@@ -377,6 +503,8 @@ func main() {
 	mu.HandleFunc("GET /api/healthz/", healthzHandler)
 
 	mu.HandleFunc("POST /api/users", apiCfg.createUserHandler)
+	mu.HandleFunc("PUT /api/users", apiCfg.updateUserHandler)
+
 	mu.HandleFunc("POST /api/login", apiCfg.loginHandler)
 	mu.HandleFunc("POST /api/refresh", apiCfg.refreshTokenHandler)
 	mu.HandleFunc("POST /api/revoke", apiCfg.revokeTokenHandler)
@@ -384,6 +512,9 @@ func main() {
 	mu.HandleFunc("POST /api/chirps", apiCfg.createChirpHandler)
 	mu.HandleFunc("GET /api/chirps", apiCfg.getChirpsHandler)
 	mu.HandleFunc("GET /api/chirps/{chirpId}", apiCfg.getChirpByIDHandler)
+	mu.HandleFunc("DELETE /api/chirps/{chirpId}", apiCfg.deleteChirpByIDHandler)
+
+	mu.HandleFunc("POST /api/polka/webhooks", apiCfg.polkaWebhookHandler)
 
 	fmt.Printf("Serving files from %s on port %s\n", rootDir, PORT)
 	log.Fatal(server.ListenAndServe())
