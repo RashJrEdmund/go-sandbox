@@ -23,29 +23,37 @@ const consoleSpace string = "-----------------------------------"
 
 const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
-func generateShortCode(n int) string {
-	b := make([]byte, n)
-	for i := range b {
-		b[i] = charset[rand.Intn(len(charset))]
+func generateShortCode(size int) string {
+	bytes := make([]byte, size)
+	for i := range bytes {
+		bytes[i] = charset[rand.Intn(len(charset))]
 	}
-	return string(b)
+	return string(bytes)
 }
 
 const maxRetries = 10
 
-func generateUniqueShortCode(n int, longUrl string) (string, error) {
-	mu.Lock()
-	defer mu.Unlock()
+func generateUniqueShortCode(size int, longUrl string) (string, error) {
+	var code string
 
-	for i := 0; i < maxRetries; i++ {
-		code := generateShortCode(n)
+	mu.RLock()
+	for range maxRetries {
+		code = generateShortCode(size)
 		if _, exists := store[code]; !exists {
-			store[code] = longUrl // reserves shortcode while we still hold the lock
-			return code, nil
+			break // found an unused unique code so stopping the loop
 		}
 	}
+	mu.RUnlock()
 
-	return "", errors.New("Unique Code could not be generated")
+	if code == "" {
+		return "", errors.New("Unique Code could not be generated")
+	}
+
+	mu.Lock()
+	store[code] = longUrl // reserves shortcode while we still hold the lock
+	mu.Unlock()
+
+	return code, nil
 }
 
 // POST /shorten?url=https://www.example.com/path123?query=123#fragment123

@@ -26,7 +26,7 @@ Stretch goals: persist to SQLite, add a tiny HTML frontend, generate collision-f
 - I'll learn: making HTTP requests, parsing JSON responses into structs, environment variables for API keys, formatting output.
 Stretch goals: cache results, support multiple cities, add a --forecast flag.
 
-## 5. Concurrent Link Checker
+## ~5. Concurrent Link Checker (rlc)~
 
   Given a list of URLs, check which are alive and how fast they respond—concurrently.
 

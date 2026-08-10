@@ -1,4 +1,3 @@
-
 ## Goose
 
 These and the sqlc.md docs are written to reference the chirpy projects
