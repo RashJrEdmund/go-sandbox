@@ -54,6 +54,11 @@ func main() {
 	fmt.Println("compareArrays(): ", compareArrays())
 	fmt.Println("compareSlices(): ", compareSlices())
 	fmt.Println("--------------------------------")
+
+	// DELETING FROM SLICES
+	fmt.Println("--------------------------------")
+	fmt.Println("deletingFromSlices(): ", deletingFromSlices())
+	fmt.Println("--------------------------------")
 }
 
 type cost struct {
@@ -173,6 +178,38 @@ func compareSlices() bool {
 	r2 := []interface{}{"apple", map[string]int{"a": 1}}
 
 	fmt.Println("reflect.DeepEqual(r1, r2): ", reflect.DeepEqual(r1, r2))
+
+	return true
+}
+
+func deletingFromSlices() bool {
+	test1 := []int{1, 2, 3, 4, 5}
+	test2 := []int{1, 2, 3, 4, 5}
+
+	type TestStruct struct {
+		id   int
+		name string
+	}
+
+	test3 := []TestStruct{
+		{id: 1, name: "John"},
+		{id: 2, name: "Jane"},
+		{id: 3, name: "Jim"},
+	}
+
+	test1 = append(test1[:2], test1[3:]...)
+	fmt.Println("test1: ", test1)
+
+	// using slices
+
+	test2 = slices.Delete(test2, 2, 3)
+
+	test3 = slices.DeleteFunc(test3, func(t TestStruct) bool {
+		return t.id == 2
+	})
+
+	fmt.Println("test2: ", test2)
+	fmt.Println("test3: ", test3)
 
 	return true
 }
