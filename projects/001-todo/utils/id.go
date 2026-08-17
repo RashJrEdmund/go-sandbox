@@ -1,8 +1,7 @@
-package main
+package utils
 
 import (
 	"errors"
-	"fmt"
 	"math/rand"
 	"slices"
 	"sync"
@@ -50,42 +49,4 @@ func GenerateUniqueId() (string, error) {
 	mu.Unlock()
 
 	return newId, nil
-}
-
-func removeTag(args *[]string, tag string) {
-	if slices.Contains(*args, tag) {
-		*args = slices.Delete(*args, slices.Index(*args, tag), slices.Index(*args, tag)+1)
-	}
-}
-
-func ParseInput(args []string) (command string, input string, tags []string) { // input could be a title or an ID
-	if len(args) < 1 {
-		return command, input, tags // zero values
-	}
-
-	fmt.Println(args, len(args))
-
-	if slices.Contains(args, "-p") || slices.Contains(args, "--print") {
-		tags = append(tags, "print")
-		removeTag(&args, "-p")
-		removeTag(&args, "--print")
-	}
-
-	if slices.Contains(args, "-h") || slices.Contains(args, "--help") {
-		tags = append(tags, "help")
-		removeTag(&args, "-h")
-		removeTag(&args, "--help")
-
-		return command, input, tags
-	}
-
-	if len(args) >= 1 {
-		command = args[0]
-	}
-
-	if len(args) >= 2 {
-		input = args[1]
-	}
-
-	return command, input, tags
 }
