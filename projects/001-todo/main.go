@@ -75,6 +75,31 @@ func removeHandler(id string, shouldPrint bool) {
 	}
 }
 
+func removeCompletedHandler(shouldPrint bool) {
+	todoList, err := store.LoadTodos(FILE_PATH)
+	if err != nil {
+		PrintDelimiter()
+		fmt.Println("Error loading todos ->", err)
+		return
+	}
+
+	todoList = slices.DeleteFunc(todoList, func(todo types.Todo) bool {
+		return todo.Completed
+	})
+
+	if err := store.SaveTodos(FILE_PATH, &todoList); err != nil {
+		PrintDelimiter()
+		fmt.Println("Error saving todos:", err)
+		return
+	}
+
+	PrintDelimiter()
+	fmt.Println("Completed todos removed successfully")
+	if shouldPrint {
+		PrintTodos(&todoList)
+	}
+}
+
 func clearHandler(shouldPrint bool) {
 	err := os.Remove(FILE_PATH)
 	if err != nil {
@@ -98,6 +123,46 @@ func clearHandler(shouldPrint bool) {
 	fmt.Println("Todos cleared successfully")
 	if shouldPrint {
 		PrintTodos(&[]types.Todo{})
+	}
+}
+
+func markAsCompleteHandler(id string, shouldPrint bool) {
+	todoList, err := store.LoadTodos(FILE_PATH)
+	if err != nil {
+		PrintDelimiter()
+		fmt.Println("Error loading todos ->", err)
+		return
+	}
+
+	hasTodo := false
+
+	todoList = Map(todoList, func(todo types.Todo, _ int) types.Todo {
+		if todo.ID == id {
+			hasTodo = true
+			todo.Completed = true
+		}
+		return todo
+	})
+
+	if !hasTodo {
+		PrintDelimiter()
+		fmt.Println("Todo not found")
+		if shouldPrint {
+			PrintTodos(&todoList)
+		}
+		return
+	}
+
+	if err := store.SaveTodos(FILE_PATH, &todoList); err != nil {
+		PrintDelimiter()
+		fmt.Println("Error saving todos:", err)
+		return
+	}
+
+	PrintDelimiter()
+	fmt.Printf("Todo with ID '%s' marked as complete\n", id)
+	if shouldPrint {
+		PrintTodos(&todoList)
 	}
 }
 
@@ -143,10 +208,10 @@ func addHandler(title string, shouldPrint bool) {
 }
 
 const (
-	version   = "1.0.0"
-	appName   = "rtodo"
-	FILE_PATH = "/tmp/r_apps_rtodo.json"
-	// FILE_PATH = "test-todos.json"
+	version = "1.0.0"
+	appName = "rtodo"
+	// FILE_PATH = "/tmp/r_apps_rtodo.json"
+	FILE_PATH = "test-todos.json"
 )
 
 func main() {
@@ -160,11 +225,11 @@ func main() {
 
 	command, input, tags := utils.ParseInput(os.Args[1:])
 
-	if slices.Contains(tags, "print") || slices.Contains(tags, "list") {
+	if slices.Contains(tags, TAGS.PRINT) || slices.Contains(tags, TAGS.LIST) {
 		shouldPrint = true
 	}
 
-	if slices.Contains(tags, "version") {
+	if slices.Contains(tags, TAGS.VERSION) {
 		fmt.Printf("%s  version %s\n", appName, version)
 		return
 	}
@@ -183,8 +248,25 @@ func main() {
 		}
 
 		removeHandler(input, shouldPrint)
+	case COMMANDS.RMC:
+		removeCompletedHandler(shouldPrint)
 	case COMMANDS.CLEAR:
 		clearHandler(shouldPrint)
+	case COMMANDS.COMPLETE:
+		fallthrough
+	case COMMANDS.DONE:
+		fallthrough
+	case COMMANDS.FINISH:
+		fallthrough
+	case COMMANDS.CHECK:
+		fallthrough
+	case COMMANDS.MARK:
+		if input == "" {
+			fmt.Println("Please provide an ID to mark as complete")
+			return
+		}
+
+		markAsCompleteHandler(input, shouldPrint)
 	case COMMANDS.ADD:
 		if input == "" {
 			fmt.Println("Please provide a title to add")
