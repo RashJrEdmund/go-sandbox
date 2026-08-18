@@ -13,7 +13,12 @@ import (
 )
 
 func listHandler(tags []string) {
-	todoList, _ := store.LoadTodos(FILE_PATH)
+	todoList, err := store.LoadTodos(FILE_PATH)
+	if err != nil {
+		PrintDelimiter()
+		fmt.Println("Error loading todos ->", err)
+		return
+	}
 
 	if slices.Contains(tags, TAGS.COMPLETED) {
 		res := []types.Todo{}
@@ -32,7 +37,12 @@ func listHandler(tags []string) {
 }
 
 func removeHandler(id string, shouldPrint bool) {
-	todoList, _ := store.LoadTodos(FILE_PATH)
+	todoList, err := store.LoadTodos(FILE_PATH)
+	if err != nil {
+		PrintDelimiter()
+		fmt.Println("Error loading todos ->", err)
+		return
+	}
 
 	hasTodo := false
 
@@ -92,9 +102,19 @@ func clearHandler(shouldPrint bool) {
 }
 
 func addHandler(title string, shouldPrint bool) {
-	todoList, _ := store.LoadTodos(FILE_PATH)
+	todoList, err := store.LoadTodos(FILE_PATH)
+	if err != nil {
+		PrintDelimiter()
+		fmt.Println("Error loading todos ->", err)
+		return
+	}
 
-	id, err := utils.GenerateUniqueId()
+	id, err := utils.GenerateUniqueId(
+		Map(todoList, func(todo types.Todo, _ int) string {
+			return todo.ID
+		}),
+	)
+
 	if err != nil {
 		PrintDelimiter()
 		fmt.Println("Error generating unique ID:", err)
@@ -126,6 +146,7 @@ const (
 	version   = "1.0.0"
 	appName   = "rtodo"
 	FILE_PATH = "/tmp/r_apps_rtodo.json"
+	// FILE_PATH = "test-todos.json"
 )
 
 func main() {

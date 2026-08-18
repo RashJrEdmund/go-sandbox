@@ -9,24 +9,25 @@ import (
 )
 
 func LoadTodos(filePath string) ([]types.Todo, error) {
+	byteData, err := os.ReadFile(filePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []types.Todo{}, nil
+		}
+		return nil, fmt.Errorf("Error opening file: %w", err)
+	}
+
 	var todoList []types.Todo
 
-	file, err := os.Open(filePath)
-	if err != nil {
-		return todoList, fmt.Errorf("Error opening file: %w", err)
-	}
-	defer file.Close()
-
-	decoder := json.NewDecoder(file) // just like reading a request body
-	if err := decoder.Decode(&todoList); err != nil {
-		return todoList, fmt.Errorf("Error decoding todos: %w", err)
+	if err := json.Unmarshal(byteData, &todoList); err != nil {
+		return nil, fmt.Errorf("Error unmarshalling todos: %w", err)
 	}
 
 	return todoList, nil
 }
 
 func SaveTodos(filePath string, todos *[]types.Todo) error {
-	todoJsonBytes, err := json.Marshal(*todos)
+	todoJsonBytes, err := json.MarshalIndent(*todos, "", "  ") // 2 spaces for indentation in json file
 	if err != nil {
 		return fmt.Errorf("Error marshalling todos: %w", err)
 	}

@@ -4,12 +4,6 @@ import (
 	"errors"
 	"math/rand"
 	"slices"
-	"sync"
-)
-
-var (
-	idStore = []string{}
-	mu      sync.RWMutex
 )
 
 const (
@@ -28,25 +22,21 @@ func generateShortCode() string {
 	return string(bytes)
 }
 
-func GenerateUniqueId() (string, error) {
+func GenerateUniqueId(existingIds []string) (string, error) {
 	var newId string
+	foundUnique := false
 
-	mu.RLock()
 	for range maxRetries {
 		newId = generateShortCode()
-		if !slices.Contains(idStore, newId) {
+		if !slices.Contains(existingIds, newId) {
+			foundUnique = true
 			break // found an unused unique Id so stopping the loop
 		}
 	}
-	mu.RUnlock()
 
-	if newId == "" {
+	if !foundUnique {
 		return "", errors.New("Unique Id could not be generated")
 	}
-
-	mu.Lock()
-	idStore = append(idStore, newId) // reserves Id while we still hold the lock
-	mu.Unlock()
 
 	return newId, nil
 }
