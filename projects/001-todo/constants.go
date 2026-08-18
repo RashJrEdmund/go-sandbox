@@ -14,6 +14,8 @@ type commands struct {
 	RM     string
 	REMOVE string
 	//
+	CLEAR string
+	//
 	UPDATE string
 }
 
@@ -29,5 +31,6 @@ var COMMANDS = commands{
 	DELETE: "delete",
 	REMOVE: "remove",
 	RM:     "rm",
+	CLEAR:  "clear",
 	UPDATE: "update",
 }

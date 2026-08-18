@@ -8,46 +8,35 @@ import (
 	"github.com/orashus/rtodo/types"
 )
 
-// const dummyData = `
-// [
-// 	{
-// 		"id": "12345",
-// 		"title": "Buy groceries",
-// 		"completed": false,
-// 		"created_at": "2021-01-01T00:00:00Z"
-// 	},
-// 	{
-// 		"id": "67890",
-// 		"title": "Buy a new car",
-// 		"completed": true,
-// 		"created_at": "2021-01-02T00:00:00Z"
-// 	}
-// ]`
-
 func LoadTodos(filePath string) ([]types.Todo, error) {
-	// if err := json.Unmarshal([]byte(dummyData), &TodoList); err != nil {
-	// 	return nil, fmt.Errorf("error unmarshalling todos: %w", err)
-	// }
+	var todoList []types.Todo
 
 	file, err := os.Open(filePath)
-
 	if err != nil {
-		return nil, fmt.Errorf("error opening file: %w", err)
+		return todoList, fmt.Errorf("Error opening file: %w", err)
 	}
-
 	defer file.Close()
 
-	var TodoList []types.Todo
-
 	decoder := json.NewDecoder(file) // just like reading a request body
-
-	if err := decoder.Decode(&TodoList); err != nil {
-		return nil, fmt.Errorf("error decoding todos: %w", err)
+	if err := decoder.Decode(&todoList); err != nil {
+		return todoList, fmt.Errorf("Error decoding todos: %w", err)
 	}
 
-	return TodoList, nil
+	return todoList, nil
 }
 
-// func saveTodos(path string, todos []Todo) error {
-// 	//
-// }
+func SaveTodos(filePath string, todos *[]types.Todo) error {
+	todoJsonBytes, err := json.Marshal(*todos)
+	if err != nil {
+		return fmt.Errorf("Error marshalling todos: %w", err)
+	}
+
+	// os.WriteFile will create file if not exists or truncate it if it exists
+	// truncating the file means deleting all the content and writing the new content
+	er := os.WriteFile(filePath, todoJsonBytes, 0644)
+	if er != nil {
+		return fmt.Errorf("Error writing file: %w", er)
+	}
+
+	return nil
+}

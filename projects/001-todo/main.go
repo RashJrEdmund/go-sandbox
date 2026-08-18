@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"slices"
@@ -11,11 +12,13 @@ import (
 	"github.com/orashus/rtodo/utils"
 )
 
-func listHandler(todoList *[]types.Todo, tags []string) {
+func listHandler(tags []string) {
+	todoList, _ := store.LoadTodos(FILE_PATH)
+
 	if slices.Contains(tags, TAGS.COMPLETED) {
 		res := []types.Todo{}
 
-		for _, todo := range *todoList {
+		for _, todo := range todoList {
 			if todo.Completed {
 				res = append(res, todo)
 			}
@@ -25,13 +28,15 @@ func listHandler(todoList *[]types.Todo, tags []string) {
 		return
 	}
 
-	PrintTodos(todoList)
+	PrintTodos(&todoList)
 }
 
-func removeHandler(todoList *[]types.Todo, id string, shouldPrint bool) {
+func removeHandler(id string, shouldPrint bool) {
+	todoList, _ := store.LoadTodos(FILE_PATH)
+
 	hasTodo := false
 
-	*todoList = slices.DeleteFunc(*todoList, func(todo types.Todo) bool {
+	todoList = slices.DeleteFunc(todoList, func(todo types.Todo) bool {
 		if todo.ID == id {
 			hasTodo = true
 		}
@@ -39,25 +44,59 @@ func removeHandler(todoList *[]types.Todo, id string, shouldPrint bool) {
 	})
 
 	if !hasTodo {
-		fmt.Println("\n", utils.Delimiter)
+		PrintDelimiter()
 		fmt.Println("Todo not found")
 		if shouldPrint {
-			PrintTodos(todoList)
+			PrintTodos(&todoList)
 		}
 		return
 	}
 
-	fmt.Println("\n", utils.Delimiter)
+	if err := store.SaveTodos(FILE_PATH, &todoList); err != nil {
+		PrintDelimiter()
+		fmt.Println("Error saving todos:", err)
+		return
+	}
+
+	PrintDelimiter()
 	fmt.Printf("Todo with Id '%s' removed successfully\n", id)
 	if shouldPrint {
-		PrintTodos(todoList)
+		PrintTodos(&todoList)
 	}
 }
 
-func addHandler(todoList *[]types.Todo, title string, shouldPrint bool) {
+func clearHandler(shouldPrint bool) {
+	err := os.Remove(FILE_PATH)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) { // or I could do os.IsNotExist(err)
+			/*
+				This just checks if the error is known to report that a file or directory does not exist.
+				os.IsNotExist() does the same thing but is restricted to only errors returned by the os package.
+					It is satisfied by [ErrNotExist] as well as some syscall errors.
+			*/
+			PrintDelimiter()
+			fmt.Println("No todos to clear")
+			return
+		}
+
+		PrintDelimiter()
+		fmt.Println("Error clearing todos:", err)
+		return
+	}
+
+	PrintDelimiter()
+	fmt.Println("Todos cleared successfully")
+	if shouldPrint {
+		PrintTodos(&[]types.Todo{})
+	}
+}
+
+func addHandler(title string, shouldPrint bool) {
+	todoList, _ := store.LoadTodos(FILE_PATH)
+
 	id, err := utils.GenerateUniqueId()
 	if err != nil {
-		fmt.Println("\n", utils.Delimiter)
+		PrintDelimiter()
 		fmt.Println("Error generating unique ID:", err)
 		return
 	}
@@ -69,26 +108,27 @@ func addHandler(todoList *[]types.Todo, title string, shouldPrint bool) {
 		CreatedAt: time.Now(),
 	}
 
-	*todoList = append(*todoList, newTodo)
+	todoList = append(todoList, newTodo)
+	if err := store.SaveTodos(FILE_PATH, &todoList); err != nil {
+		PrintDelimiter()
+		fmt.Println("Error saving todos:", err)
+		return
+	}
+
+	PrintDelimiter()
+	fmt.Println("Todo added successfully")
 	if shouldPrint {
-		PrintTodos(todoList)
+		PrintTodos(&todoList)
 	}
 }
 
 const (
-	version  = "1.0.0"
-	appName  = "rtodo"
-	filePath = "todos.json"
+	version   = "1.0.0"
+	appName   = "rtodo"
+	FILE_PATH = "/tmp/r_apps_rtodo.json"
 )
 
 func main() {
-	var TodoList, err = store.LoadTodos(filePath)
-
-	if err != nil {
-		fmt.Println("Error loading todos:", err)
-		return
-	}
-
 	if len(os.Args) < 2 {
 		fmt.Printf("%s  version %s\n", appName, version)
 		fmt.Println("Please provide a command")
@@ -99,7 +139,7 @@ func main() {
 
 	command, input, tags := utils.ParseInput(os.Args[1:])
 
-	if slices.Contains(tags, "print") {
+	if slices.Contains(tags, "print") || slices.Contains(tags, "list") {
 		shouldPrint = true
 	}
 
@@ -110,7 +150,7 @@ func main() {
 
 	switch command {
 	case COMMANDS.LIST:
-		listHandler(&TodoList, tags)
+		listHandler(tags)
 	case COMMANDS.DELETE:
 		fallthrough
 	case COMMANDS.RM:
@@ -121,26 +161,27 @@ func main() {
 			return
 		}
 
-		removeHandler(&TodoList, input, shouldPrint)
+		removeHandler(input, shouldPrint)
+	case COMMANDS.CLEAR:
+		clearHandler(shouldPrint)
 	case COMMANDS.ADD:
 		if input == "" {
 			fmt.Println("Please provide a title to add")
 			return
 		}
 
-		addHandler(&TodoList, input, shouldPrint)
+		addHandler(input, shouldPrint)
 	case COMMANDS.UPDATE:
 		// WRITE UPDATE HANDLER
 		// Update needs 2 inputs,
 	default:
 		fmt.Println("Invalid command")
-		fmt.Println(utils.Delimiter)
+		PrintDelimiter()
 
 		if shouldPrint {
-			PrintTodos(&TodoList)
+			todoList, _ := store.LoadTodos(FILE_PATH)
+			PrintTodos(&todoList)
 		}
 		return
 	}
 }
-
-// TOdo, fix persistence problem

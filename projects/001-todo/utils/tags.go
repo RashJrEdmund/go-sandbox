@@ -32,13 +32,14 @@ func ParseInput(args []string) (command string, input string, tags []string) { /
 		return command, input, tags // zero values
 	}
 
-	fmt.Println(args, len(args))
+	// fmt.Println(args, len(args))
 
 	allowedTags := []struct {
 		short string
 		long  string
 	}{
 		{short: "p", long: "print"},
+		{short: "l", long: "list"}, // list and print flags do the same thing
 		{short: "c", long: "completed"},
 		{short: "h", long: "help"},
 		{short: "v", long: "version"},

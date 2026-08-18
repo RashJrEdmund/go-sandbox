@@ -15,3 +15,7 @@ func PrintTodos(todos *[]types.Todo) {
 		fmt.Printf("%-10s %-28s %-10v %-50s\n", todo.ID, todo.CreatedAt.Format(time.RFC3339), todo.Completed, todo.Title)
 	}
 }
+
+func PrintDelimiter() {
+	fmt.Println(utils.Delimiter)
+}
