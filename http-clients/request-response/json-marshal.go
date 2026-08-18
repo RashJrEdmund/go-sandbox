@@ -7,6 +7,18 @@ Marshal JSON: https://pkg.go.dev/encoding/json#Unmarshal
 	We still have to write the tags for the fields we want to marshal
 */
 
+/*
+INDENTATION. JSON PRETTY PRINTING:
+	json.MarshalIndent(v, prefix, indent) is a convenience function that marshals the given value v into a JSON string with indentation.
+	It's useful for pretty-printing JSON output.
+
+	prefix is a string that is added to the beginning of each line.
+	indent is a string that is used to indent the JSON output.
+
+	Example:
+		jsonBytes, err := json.MarshalIndent(admin, "", "  ") // 2 spaces for indenting the json output
+*/
+
 package main
 
 import (
